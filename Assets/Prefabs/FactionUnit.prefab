@@ -1,0 +1,227 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &435499732160133056
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7521165562679894705}
+  - component: {fileID: 2566690229293974574}
+  - component: {fileID: 5324906199309517918}
+  - component: {fileID: 2193074420898534279}
+  - component: {fileID: 4660383906087901889}
+  - component: {fileID: 5751016870940907810}
+  m_Layer: 8
+  m_Name: FactionUnit
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7521165562679894705
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 435499732160133056}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -6.8808594, y: 1.4, z: -10.048706}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!33 &2566690229293974574
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 435499732160133056}
+  m_Mesh: {fileID: 10208, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!23 &5324906199309517918
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 435499732160133056}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 2100000, guid: 31321ba15b8f8eb4c954353edc038b1d, type: 2}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_MaskInteraction: 0
+  m_AdditionalVertexStreams: {fileID: 0}
+--- !u!136 &2193074420898534279
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 435499732160133056}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.5
+  m_Height: 2
+  m_Direction: 1
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &4660383906087901889
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 435499732160133056}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2fdd4aba2a822ab4f9b264855fff60d1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FactionBody
+  faction: 1
+  maxHealth: 100
+  radius: 0.5
+  onDamaged:
+    m_PersistentCalls:
+      m_Calls: []
+  onDeath:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!114 &5751016870940907810
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 435499732160133056}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bf80d91232dfe214baf69834055a5a67, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FactionUnit
+  role: 1
+  camp: {fileID: 0}
+  sightRange: 18
+  sightAngle: 140
+  closeSenseRange: 4
+  eyeHeight: 1.2
+  sightBlockMask:
+    serializedVersion: 2
+    m_Bits: 0
+  scanInterval: 0.4
+  awarenessGain: 0.6
+  awarenessDecay: 0.25
+  suspicionLevel: 0.35
+  walkSpeed: 1.6
+  investigateSpeed: 2.5
+  chaseSpeed: 5.5
+  attackMoveSpeed: 2.5
+  returnSpeed: 4.5
+  maxForce: 14
+  turnSpeed: 8
+  neighborRadius: 6
+  separationRadius: 1.6
+  idleWeights:
+    separation: 1.5
+    alignment: 1
+    cohesion: 1
+    goal: 1
+    wander: 0.5
+  patrolWeights:
+    separation: 1.5
+    alignment: 1
+    cohesion: 1
+    goal: 1
+    wander: 0.5
+  chaseWeights:
+    separation: 2
+    alignment: 0.4
+    cohesion: 0.2
+    goal: 1.5
+    wander: 0
+  returnWeights:
+    separation: 1.5
+    alignment: 0.5
+    cohesion: 0.3
+    goal: 1.5
+    wander: 0
+  idleDamping: 0.5
+  attackRange: 1.2
+  attackDamage: 10
+  attackCooldown: 1.5
+  cooldownJitter: 0.4
+  attacksPerTurn: 2
+  slotCooldown: 1.5
+  crowdPenalty: 3
+  waitRingOffset: 2.5
+  combatSeparationRadius: 1.8
+  combatSeparationWeight: 3
+  combatDamping: 1
+  swayWeight: 0.4
+  onAttack:
+    m_PersistentCalls:
+      m_Calls: []
+  lookAroundTime: 3
+  returnHealPerSecond: 25
+  corpseLifetime: 3
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 64
+  obstacleMask:
+    serializedVersion: 2
+    m_Bits: 0
+  avoidDistance: 3
+  avoidWeight: 4
+  bodyRadius: 0.5
+  maxStepHeight: 0.6
+  tintByFaction: 1

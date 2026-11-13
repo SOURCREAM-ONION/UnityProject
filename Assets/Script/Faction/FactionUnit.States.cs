@@ -1,8 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// FactionUnit의 FSM 상태들.
+/// FactionUnit의 개인 FSM 상태들.
 /// 각 상태는 Tick에서 ① 전이 조건을 검사하고 ② 이번 프레임의 보이드 조향 힘을 돌려준다.
+/// 진영 단위 전이(평온↔경계↔전투)는 FactionCamp가 OnCampCombat/OnCampCalm 등으로 걸어준다.
 /// 중첩 클래스라서 FactionUnit의 private 멤버를 그대로 쓸 수 있다.
 /// </summary>
 public partial class FactionUnit
@@ -22,98 +23,130 @@ public partial class FactionUnit
         public abstract Vector3 Tick(float dt);
     }
 
-    // ───────── 평소: 거점 안에서 배회 ─────────
-    class PatrolState : State
+    // ───────── 평소: 역할 행동 ─────────
+    class IdleState : State
     {
-        public PatrolState(FactionUnit u) : base(u) { }
-        public override string Name => "Patrol";
+        public IdleState(FactionUnit u) : base(u) { }
+        public override string Name => "Idle";
         public override Color GizmoColor => Color.green;
-        public override float Speed => u.patrolSpeed;
+        public override float Speed => u.walkSpeed;
 
         public override Vector3 Tick(float dt)
         {
-            if (u.camp != null && u.camp.IsMarching) { u.ChangeState(u.march); return Vector3.zero; }
-            if (u.ScanForEnemy(dt, false))
+            float s = Speed;
+
+            if (u.role == Role.Guard)
             {
-                u.RaiseAlarm();
-                u.ChangeState(u.engage);
-                return Vector3.zero;
+                // 경비: 동료와 겹치지 않을 정도의 분리 + 자기 자리로 돌아가는 힘
+                u.Flock(u.separationRadius, s, out var sep, out _, out _);
+                return sep * u.idleWeights.separation + u.Arrive(u.postPosition, s, 2f) * 1.5f;
             }
 
-            float s = Speed;
-            var w = u.patrolWeights;
+            var wp = u.camp != null ? u.camp.GroupWaypoint : null;
+            if (wp.HasValue)
+            {
+                // 배회조 + 순찰 경로: 무리 전체가 같은 지점을 향하니 정렬/응집이 대열을 만든다
+                var pw = u.patrolWeights;
+                return u.Flocked(pw, s) + u.Arrive(wp.Value, s, 4f) * pw.goal;
+            }
+
+            // 배회조: 진영 안에서 무리 지어 어슬렁거림
+            var w = u.idleWeights;
             return u.Flocked(w, s)
                  + u.HomeTether(s) * w.goal
                  + u.Wander(s, dt) * w.wander
-                 - u.Velocity * u.patrolDamping;
+                 - u.Velocity * u.idleDamping;
         }
     }
 
-    // ───────── 진군: 무리 지어 목표로 행군 ─────────
-    class MarchState : State
+    // ───────── 조사: 수상한 지점에 가서 둘러봄 ─────────
+    class InvestigateState : State
     {
-        public MarchState(FactionUnit u) : base(u) { }
-        public override string Name => "March";
-        public override Color GizmoColor => Color.cyan;
-        public override float Speed => u.marchSpeed;
+        float lookTimer;
+
+        public InvestigateState(FactionUnit u) : base(u) { }
+        public override string Name => "Investigate";
+        public override Color GizmoColor => Color.yellow;
+        public override float Speed => u.investigateSpeed;
+
+        public override void Enter() => Restart();
+        public void Restart() => lookTimer = 0f;
 
         public override Vector3 Tick(float dt)
         {
-            if (u.camp == null || !u.camp.IsMarching) { u.ChangeState(u.patrol); return Vector3.zero; }
-            if (u.ScanForEnemy(dt, false))
-            {
-                u.RaiseAlarm();
-                u.ChangeState(u.engage);
-                return Vector3.zero;
-            }
+            if (u.camp == null || u.camp.State == CampState.Calm) { u.ChangeState(u.returning); return Vector3.zero; }
 
             float s = Speed;
-            var w = u.marchWeights;
-            return u.Flocked(w, s) + u.Arrive(u.camp.MarchPoint, s, 5f) * w.goal;
+            Vector3 point = u.camp.InvestigatePoint;
+            u.Flock(u.separationRadius, s, out var sep, out _, out _);
+
+            if (Flat(point - u.transform.position).magnitude > 1.5f)
+                return sep * 1.5f + u.Arrive(point, s, 2f) * 1.5f;
+
+            // 도착: 천천히 맴돌며 두리번거림
+            lookTimer += dt;
+            if (lookTimer >= u.lookAroundTime) { u.ChangeState(u.returning); return Vector3.zero; }
+            return sep * 1.5f + u.Wander(s * 0.6f, dt) + u.Arrive(point, s * 0.3f, 2f) * 0.5f;
         }
     }
 
-    // ───────── 교전: 표적으로 접근, 꽉 찼으면 대기열 ─────────
+    // ───────── 교전: 접근, 슬롯이 없으면 주위에서 순번 대기 ─────────
     class EngageState : State
     {
+        float retargetTimer;
+
         public EngageState(FactionUnit u) : base(u) { }
         public override string Name => "Engage";
-        public override Color GizmoColor => Color.yellow;
-        public override float Speed => u.engageSpeed;
+        public override Color GizmoColor => new Color(1f, 0.6f, 0f);
+        public override float Speed => u.chaseSpeed;
 
-        public override void Enter() => u.scanTimer = 0f; // 들어오자마자 표적 다시 고름
+        public override void Enter() => retargetTimer = 0f;
 
         public override Vector3 Tick(float dt)
         {
-            if (u.ShouldRetreat) { u.ChangeState(u.retreat); return Vector3.zero; }
-            if (!u.ScanForEnemy(dt, true)) { u.ChangeState(u.CalmState); return Vector3.zero; }
-
-            var t = u.Target;
-            float s = Speed;
-            float reach = u.Reach(t);
-            float d = u.DistanceTo(t);
-            bool full = t.attackers >= u.maxAttackersPerTarget;
-
-            if (!full && d <= reach) { u.ChangeState(u.attack); return Vector3.zero; }
-
-            // 표적이 꽉 찼고 가까우면, 한 걸음 뒤 대기열에 서서 빈자리를 기다림
-            if (full && d < reach + u.waitRingOffset + 3f)
+            retargetTimer -= dt;
+            if (retargetTimer <= 0f || u.Target == null || !u.Target.IsAlive)
             {
-                u.Flock(u.attackSeparationRadius, s, out var sep, out _, out _);
-                return sep * u.attackSeparationWeight
-                     + u.KeepDistance(t, reach + u.waitRingOffset, s) * 2f
-                     - u.Velocity * u.attackDamping;
+                retargetTimer = u.scanInterval;
+                u.Target = u.camp != null ? u.camp.BestTarget(u.transform.position, u.crowdPenalty, u.Target) : null;
             }
 
-            var w = u.engageWeights;
+            float s = Speed;
+            var t = u.Target;
+            if (t == null)
+            {
+                // 진영이 아는 적이 없음 → 진영이 곧 경계/평온으로 바꿔줌. 그동안 무리 유지
+                u.Flock(u.separationRadius, s, out var sep0, out _, out _);
+                return sep0 - u.Velocity * u.combatDamping;
+            }
+
+            float reach = u.Reach(t);
+            float d = u.DistanceTo(t);
+            bool canTakeSlot = Time.time >= u.nextSlotTime && u.camp.HasFreeSlot(t);
+
+            if (canTakeSlot && d <= reach) { u.ChangeState(u.attack); return Vector3.zero; }
+
+            // 슬롯이 없고 가까우면: 한 걸음 뒤 원 위에서 서성이며 빈자리를 기다림
+            if (!canTakeSlot && d < reach + u.waitRingOffset + 3f)
+            {
+                u.Flock(u.combatSeparationRadius, s, out var sep, out _, out _);
+                return sep * u.combatSeparationWeight
+                     + u.KeepDistance(t, reach + u.waitRingOffset, s) * 2f
+                     + u.Sway(t, s, dt) * u.swayWeight
+                     - u.Velocity * u.combatDamping;
+            }
+
+            // 멀면: 무리 지어 추격
+            var w = u.chaseWeights;
             return u.Flocked(w, s) + u.SteerTowards(t.Position - u.transform.position, s) * w.goal;
         }
     }
 
-    // ───────── 공격: 표적 주위를 둥글게 감싸고 때림 ─────────
+    // ───────── 공격: 슬롯을 쥐고 붙어서 때림 ─────────
     class AttackState : State
     {
-        FactionBody locked; // 들어올 때 잡은 표적. attackers 카운트를 정확히 되돌리기 위해 따로 보관
+        FactionBody locked; // 들어올 때 잡은 표적. 슬롯을 정확히 반납하기 위해 따로 보관
+        int hits;
 
         public AttackState(FactionUnit u) : base(u) { }
         public override string Name => "Attack";
@@ -123,6 +156,7 @@ public partial class FactionUnit
         public override void Enter()
         {
             locked = u.Target;
+            hits = 0;
             if (locked != null) locked.attackers++;
             // 첫 타 박자를 흩어 놓음
             u.nextAttackTime = Time.time + Random.Range(0.1f, u.attackCooldown * 0.5f);
@@ -136,70 +170,52 @@ public partial class FactionUnit
 
         public override Vector3 Tick(float dt)
         {
-            if (u.ShouldRetreat) { u.ChangeState(u.retreat); return Vector3.zero; }
-            if (locked == null || !locked.IsAlive || !u.InTerritory(locked.Position))
-            {
-                u.ChangeState(u.engage);
-                return Vector3.zero;
-            }
+            if (locked == null || !locked.IsAlive) { u.ChangeState(u.engage); return Vector3.zero; }
 
             float s = Speed;
             float reach = u.Reach(locked);
             if (u.DistanceTo(locked) > reach * 1.4f) { u.ChangeState(u.engage); return Vector3.zero; }
 
-            u.TryAttack(locked);
+            if (u.TryAttack(locked) && ++hits >= u.attacksPerTurn)
+            {
+                // 차례 끝: 슬롯을 양보하고 잠깐 물러남
+                u.nextSlotTime = Time.time + u.slotCooldown;
+                u.ChangeState(u.engage);
+                return Vector3.zero;
+            }
 
             // 응집은 끄고 넓은 분리 + 거리 유지 → 표적 주위에 원형 포위가 저절로 생김
-            u.Flock(u.attackSeparationRadius, s, out var sep, out var ali, out _);
-            return sep * u.attackSeparationWeight
+            u.Flock(u.combatSeparationRadius, s, out var sep, out var ali, out _);
+            return sep * u.combatSeparationWeight
                  + ali * 0.3f
                  + u.KeepDistance(locked, reach * 0.8f, s) * 2f
-                 - u.Velocity * u.attackDamping;
+                 - u.Velocity * u.combatDamping;
         }
     }
 
-    // ───────── 퇴각: 적을 피해 거점으로, 회복 후 복귀 ─────────
-    class RetreatState : State
+    // ───────── 복귀: 제자리로, 가는 동안 회복 ─────────
+    class ReturnState : State
     {
-        public RetreatState(FactionUnit u) : base(u) { }
-        public override string Name => "Retreat";
-        public override Color GizmoColor => new Color(0.6f, 0.3f, 1f);
-        public override float Speed => u.retreatSpeed;
+        public ReturnState(FactionUnit u) : base(u) { }
+        public override string Name => "Return";
+        public override Color GizmoColor => Color.gray;
+        public override float Speed => u.returnSpeed;
 
         public override void Enter()
         {
             u.Target = null;
-            u.scanResult = null;
-            u.scanTimer = 0f;
+            u.Awareness = 0f;
+            u.reportedSuspicion = false;
         }
 
         public override Vector3 Tick(float dt)
         {
-            u.Scan(dt, true); // 표적은 안 잡고 가장 가까운 위협만 갱신
-
-            if (u.AtHome)
-            {
-                // 거점 안까지 쫓아온 적은 맞서 싸움 (궁지에 몰림)
-                var intruder = u.scanResult;
-                if (intruder != null && intruder.IsAlive
-                    && Flat(intruder.Position - u.Home).magnitude <= u.HomeRadius)
-                {
-                    u.Target = intruder;
-                    u.ChangeState(u.engage);
-                    return Vector3.zero;
-                }
-                if (u.Body.HealthRatio >= u.regroupHealth) { u.ChangeState(u.patrol); return Vector3.zero; }
-            }
+            u.Body.Heal(u.returnHealPerSecond * dt);
+            if (u.DistanceToPost < 1f) { u.ChangeState(u.idle); return Vector3.zero; }
 
             float s = Speed;
-            var w = u.retreatWeights;
-            Vector3 steer = u.Flocked(w, s) + u.Arrive(u.Home, s, 3f) * w.goal;
-
-            var threat = u.nearestThreat;
-            if (threat != null && threat.IsAlive && u.DistanceTo(threat) < u.sightRange * 0.5f)
-                steer += u.SteerTowards(u.transform.position - threat.Position, s);
-
-            return steer;
+            var w = u.returnWeights;
+            return u.Flocked(w, s) + u.Arrive(u.postPosition, s, 3f) * w.goal;
         }
     }
 

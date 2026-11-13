@@ -1,12 +1,12 @@
 /// <summary>
-/// 진영 목록. 다른 진영끼리는 기본적으로 적대하고,
-/// FactionManager의 alliances에 넣은 쌍만 동맹으로 취급한다.
+/// 진영 목록. 플레이어는 모든 몬스터 진영과 적대하고,
+/// 몬스터 진영끼리는 FactionManager의 rivalries에 넣은 쌍만 서로 싸운다.
 /// </summary>
 public enum Faction
 {
     Player,
-    Red,
-    Blue,
-    Green,
-    Yellow
+    Goblin,
+    Orc,
+    Undead,
+    Beast
 }

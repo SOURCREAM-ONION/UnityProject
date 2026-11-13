@@ -2,10 +2,10 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// 진영전 관리자. 씬에 하나만 둔다.
-///  - 모든 FactionUnit을 한 곳에서 업데이트
+/// 월드 전체를 아는 유일한 관리자. 씬에 하나만 둔다.
+///  - 진영(FactionCamp)들을 매 프레임 업데이트 → 진영이 자기 몬스터를 업데이트
 ///  - 살아 있는 FactionBody(몬스터 + 플레이어)를 공간 그리드에 넣어 주변 탐색을 가볍게 유지
-///  - 진영 간 적대/동맹 판정
+///  - 진영 간 적대 판정, 플레이어 거리 (진영 휴면/리스폰 판단용)
 /// </summary>
 [DefaultExecutionOrder(-100)]
 public class FactionManager : MonoBehaviour
@@ -13,21 +13,25 @@ public class FactionManager : MonoBehaviour
     public static FactionManager Instance { get; private set; }
 
     [System.Serializable]
-    public struct Alliance
+    public struct Rivalry
     {
         public Faction a;
         public Faction b;
     }
 
     [Header("Spatial Grid")]
-    [Tooltip("유닛의 neighborRadius와 비슷하게")]
+    [Tooltip("몬스터의 neighborRadius와 비슷하게")]
     public float cellSize = 6f;
 
     [Header("Diplomacy")]
-    [Tooltip("여기 넣은 쌍은 서로 공격하지 않음. 나머지 다른 진영끼리는 모두 적")]
-    public List<Alliance> alliances = new List<Alliance>();
+    [Tooltip("플레이어는 모든 몬스터 진영과 적. 몬스터 진영끼리는 여기 넣은 쌍만 서로 싸움")]
+    public List<Rivalry> rivalries = new List<Rivalry>();
 
-    readonly List<FactionUnit> units = new List<FactionUnit>();
+    [Header("Player")]
+    [Tooltip("비워두면 'Player' 태그로 찾음. 진영 휴면/리스폰 거리 계산에 씀")]
+    public Transform player;
+
+    readonly List<FactionCamp> camps = new List<FactionCamp>();
     readonly List<FactionBody> bodies = new List<FactionBody>();
     readonly Dictionary<Vector2Int, List<FactionBody>> grid = new Dictionary<Vector2Int, List<FactionBody>>();
 
@@ -35,6 +39,12 @@ public class FactionManager : MonoBehaviour
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
+
+        if (player == null)
+        {
+            var p = GameObject.FindWithTag("Player");
+            if (p != null) player = p.transform;
+        }
     }
 
     void OnDestroy()
@@ -42,8 +52,8 @@ public class FactionManager : MonoBehaviour
         if (Instance == this) Instance = null;
     }
 
-    public void RegisterUnit(FactionUnit u) { if (!units.Contains(u)) units.Add(u); }
-    public void UnregisterUnit(FactionUnit u) { units.Remove(u); }
+    public void RegisterCamp(FactionCamp c) { if (!camps.Contains(c)) camps.Add(c); }
+    public void UnregisterCamp(FactionCamp c) { camps.Remove(c); }
     public void RegisterBody(FactionBody b) { if (!bodies.Contains(b)) bodies.Add(b); }
     public void UnregisterBody(FactionBody b) { bodies.Remove(b); }
 
@@ -52,31 +62,39 @@ public class FactionManager : MonoBehaviour
         float dt = Time.deltaTime;
         RebuildGrid();
 
-        // Tick 도중 죽은 유닛이 Destroy되며 리스트에서 빠질 수 있어서 뒤에서부터 돈다
-        for (int i = units.Count - 1; i >= 0; i--)
+        for (int i = camps.Count - 1; i >= 0; i--)
         {
-            if (i >= units.Count) continue;
-            var u = units[i];
-            if (u != null && u.isActiveAndEnabled) u.Tick(dt);
+            var c = camps[i];
+            if (c != null && c.isActiveAndEnabled) c.Tick(dt);
         }
     }
 
     public bool IsHostile(Faction a, Faction b)
     {
         if (a == b) return false;
-        foreach (var al in alliances)
-            if ((al.a == a && al.b == b) || (al.a == b && al.b == a)) return false;
-        return true;
+        if (a == Faction.Player || b == Faction.Player) return true;
+        foreach (var r in rivalries)
+            if ((r.a == a && r.b == b) || (r.a == b && r.b == a)) return true;
+        return false;
+    }
+
+    /// <summary>플레이어까지의 수평 거리. 플레이어가 없으면 0 (= 항상 가까운 것으로 취급)</summary>
+    public float DistanceToPlayer(Vector3 p)
+    {
+        if (player == null) return 0f;
+        Vector3 d = player.position - p;
+        d.y = 0f;
+        return d.magnitude;
     }
 
     public Color ColorOf(Faction f)
     {
         switch (f)
         {
-            case Faction.Red: return new Color(0.9f, 0.25f, 0.2f);
-            case Faction.Blue: return new Color(0.2f, 0.45f, 0.95f);
-            case Faction.Green: return new Color(0.3f, 0.8f, 0.3f);
-            case Faction.Yellow: return new Color(0.95f, 0.8f, 0.2f);
+            case Faction.Goblin: return new Color(0.35f, 0.75f, 0.3f);
+            case Faction.Orc: return new Color(0.85f, 0.3f, 0.2f);
+            case Faction.Undead: return new Color(0.6f, 0.55f, 0.85f);
+            case Faction.Beast: return new Color(0.75f, 0.55f, 0.3f);
             default: return Color.white;
         }
     }
@@ -86,6 +104,7 @@ public class FactionManager : MonoBehaviour
 
     void RebuildGrid()
     {
+        // 넓은 오픈월드에서 빈 칸이 계속 쌓이지 않도록 가끔 통째로 비움
         if (grid.Count > bodies.Count * 4 + 64) grid.Clear();
         else foreach (var list in grid.Values) list.Clear();
 

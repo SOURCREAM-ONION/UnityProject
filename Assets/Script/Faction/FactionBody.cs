@@ -3,14 +3,20 @@ using UnityEngine.Events;
 
 /// <summary>
 /// 진영 소속 + 체력.
-/// 진영 몬스터뿐 아니라 플레이어에게도 붙여서(faction = Player) 공격 대상이 되게 한다.
+/// 몬스터뿐 아니라 플레이어에게도 붙여서(faction = Player) 몬스터가 알아보고 공격할 수 있게 한다.
 /// </summary>
 public class FactionBody : MonoBehaviour
 {
-    public Faction faction = Faction.Red;
+    public Faction faction = Faction.Goblin;
     public float maxHealth = 100f;
     [Tooltip("몸통 반지름. 공격 사거리 계산에 더해짐")]
     public float radius = 0.5f;
+
+    [Header("Debug")]
+    [Tooltip("테스트용: 맞아도 체력이 줄지 않음 (피격 반응은 그대로)")]
+    public bool invincible;
+    [Tooltip("맞을 때마다 콘솔에 남은 체력과 공격자를 찍음")]
+    public bool logDamage;
 
     public UnityEvent<float> onDamaged;
     public UnityEvent onDeath;
@@ -20,9 +26,8 @@ public class FactionBody : MonoBehaviour
     public float HealthRatio => maxHealth > 0f ? Health / maxHealth : 0f;
     public Vector3 Position => transform.position;
     public FactionUnit Unit { get; private set; }
-    public FactionBody LastAttacker { get; private set; }
 
-    /// <summary>지금 이 대상에 붙어서 때리고 있는 적의 수. 표적 분산과 대기열에 쓴다</summary>
+    /// <summary>지금 이 대상에게 붙어서 때리고 있는 몬스터 수 (공격 슬롯)</summary>
     [System.NonSerialized] public int attackers;
 
     bool started;
@@ -56,8 +61,10 @@ public class FactionBody : MonoBehaviour
     {
         if (!IsAlive || amount <= 0f) return;
 
-        Health = Mathf.Max(0f, Health - amount);
-        LastAttacker = attacker;
+        if (!invincible) Health = Mathf.Max(0f, Health - amount);
+        if (logDamage)
+            Debug.Log($"[{name}] -{amount} → {Health}/{maxHealth} (by {(attacker != null ? attacker.name : "?")}, " +
+                      $"attackers={attackers}, t={Time.time:F1})", this);
         onDamaged?.Invoke(amount);
         if (Unit != null) Unit.OnDamaged(attacker);
         if (!IsAlive) onDeath?.Invoke();
@@ -68,4 +75,6 @@ public class FactionBody : MonoBehaviour
         if (!IsAlive) return;
         Health = Mathf.Min(maxHealth, Health + amount);
     }
+
+    public void ResetHealth() => Health = maxHealth;
 }
